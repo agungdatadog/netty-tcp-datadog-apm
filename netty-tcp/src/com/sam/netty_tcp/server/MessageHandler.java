@@ -2,7 +2,12 @@ package com.sam.netty_tcp.server;
 
 import com.sam.netty_tcp.entity.Message;
 import io.opentracing.Span;
+import io.opentracing.Tracer;
 import io.opentracing.util.GlobalTracer;
+import io.opentracing.propagation.Format;
+import io.opentracing.propagation.TextMapExtractAdapter;
+import java.util.Map;
+import java.util.HashMap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
@@ -38,10 +43,35 @@ public class MessageHandler extends SimpleChannelInboundHandler<Message> {
 	 * @param msg  {@link Message}
 	 */
 	private void handleMessage(ChannelHandlerContext ctx, Message msg) {
+            // Extract headers + body from message payload
+            String raw = msg.getMessage();
+            String[] lines = raw.split("\n");
+            Map<String, String> contextMap = new HashMap<>();
+            StringBuilder body = new StringBuilder();
+            boolean readingHeaders = true;
 
-	    Span span = GlobalTracer.get().buildSpan("tcp.message.received").start();
+            for (String line : lines) {
+                if (line.trim().isEmpty()) {
+                    readingHeaders = false;
+                    continue;
+                }
+                if (readingHeaders && line.contains(":")) {
+                    String[] parts = line.split(":", 2);
+                    contextMap.put(parts[0].trim(), parts[1].trim());
+                } else {
+                    body.append(line).append("\n");
+                }
+            }
+
+	    Tracer tracer = GlobalTracer.get();
+	    io.opentracing.propagation.TextMap extractAdapter = new TextMapExtractAdapter(contextMap);
+            Span span = tracer.buildSpan("tcp.message.received")
+                .asChildOf(tracer.extract(Format.Builtin.TEXT_MAP, (io.opentracing.propagation.TextMap) new TextMapExtractAdapter(contextMap)))
+                .withTag("message.body", body.toString().trim())
+                .start();
+
             try {
-		System.out.println("Message Received : " + msg.getMessage());
+		System.out.println("Message Received : " + body.toString().trim());
 
 		ByteBuf buf = Unpooled.wrappedBuffer("Hey Sameer Here!!!!".getBytes());
 
