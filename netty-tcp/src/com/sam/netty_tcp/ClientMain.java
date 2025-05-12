@@ -1,7 +1,8 @@
 package com.sam.netty_tcp;
 
 import com.sam.netty_tcp.client.Client;
-
+import io.opentracing.Span;
+import io.opentracing.util.GlobalTracer;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -31,12 +32,22 @@ public class ClientMain {
 	        // check the connection is successful 
 	        if (channelFuture.isSuccess()) {
 	        	// send message to server
-	            channelFuture.channel().writeAndFlush(Unpooled.wrappedBuffer("Hello".getBytes())).addListener(new ChannelFutureListener() {
+		    Span span = GlobalTracer.get()
+                        .buildSpan("tcp.message.send")
+                        .withTag("message.sent", "Hello")
+                        .start();
+
+		    try {
+	                channelFuture.channel().writeAndFlush(Unpooled.wrappedBuffer("Hello".getBytes()))
+			    .addListener(new ChannelFutureListener() {
 	    			@Override
 	    			public void operationComplete(ChannelFuture future) throws Exception {
 	    				System.out.println(future.isSuccess()? "Message sent to server : Hello" : "Message sending failed");
 	    			}
-	    		});
+	    		    });
+		    } finally {
+                        span.finish(); 
+                    }
 	        }
 	        // timeout before closing client
 	        Thread.sleep(5000);
@@ -46,8 +57,6 @@ public class ClientMain {
 	    catch(Exception e){
 	        e.printStackTrace();
 	    	System.out.println("Try Starting Server First !!");
-	    }
-	    finally {
 	    	
 	    }
 	}

@@ -1,7 +1,8 @@
 package com.sam.netty_tcp.server;
 
 import com.sam.netty_tcp.entity.Message;
-
+import io.opentracing.Span;
+import io.opentracing.util.GlobalTracer;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
@@ -38,6 +39,8 @@ public class MessageHandler extends SimpleChannelInboundHandler<Message> {
 	 */
 	private void handleMessage(ChannelHandlerContext ctx, Message msg) {
 
+	    Span span = GlobalTracer.get().buildSpan("tcp.message.received").start();
+            try {
 		System.out.println("Message Received : " + msg.getMessage());
 
 		ByteBuf buf = Unpooled.wrappedBuffer("Hey Sameer Here!!!!".getBytes());
@@ -58,6 +61,9 @@ public class MessageHandler extends SimpleChannelInboundHandler<Message> {
 				}
 			}
 		});
+	    } finally {
+                span.finish(); 
+            }
 	}
 
 	/**
